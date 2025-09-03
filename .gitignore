@@ -1,0 +1,6 @@
+# Ignore environment file (contains email + password)
+.env
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
