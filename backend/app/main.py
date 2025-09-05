@@ -1,14 +1,15 @@
-from fastapi import FastAPI, HTTPException
-from app import models, schemas, crud, database, scheduler
-from sqlalchemy.orm import Session
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi_users import FastAPIUsers
+from sqlalchemy.orm import Session
+from crud import create_task, get_user_tasks, delete_task
+from models import Task, User
+from database import get_db
+from users import fastapi_users
 
-# Create database tables
-models.Base.metadata.create_all(bind=database.engine)
+app = FastAPI()
 
-app = FastAPI(title="Task Scheduler API")
-
-# Allow frontend access (if added later)
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,22 +18,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/tasks/", response_model=schemas.Task)
-def create_task(task: schemas.TaskCreate):
-    db: Session = database.SessionLocal()
-    db_task = crud.create_task(db, task)
-    scheduler.schedule_task(db_task)  # Schedule email reminder
-    return db_task
+# Include auth routes
+app.include_router(fastapi_users.get_auth_router(JWTAuthentication(secret="YOUR_SECRET_KEY", lifetime_seconds=3600)), prefix="/auth/jwt", tags=["auth"])
+app.include_router(fastapi_users.get_register_router(), prefix="/auth", tags=["auth"])
 
-@app.get("/tasks/", response_model=list[schemas.Task])
-def read_tasks(skip: int = 0, limit: int = 100):
-    db: Session = database.SessionLocal()
-    return crud.get_tasks(db, skip=skip, limit=limit)
+# Task endpoints
+@app.post("/tasks/")
+def create_task_endpoint(task: Task, user: User = Depends(fastapi_users.current_user())):
+    db = next(get_db())
+    return create_task(db, task, user.id)
+
+@app.get("/tasks/")
+def get_tasks_endpoint(user: User = Depends(fastapi_users.current_user())):
+    db = next(get_db())
+    return get_user_tasks(db, user.id)
 
 @app.delete("/tasks/{task_id}")
-def delete_task(task_id: int):
-    db: Session = database.SessionLocal()
-    deleted = crud.delete_task(db, task_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return {"message": "Task deleted"}
+def delete_task_endpoint(task_id: int, user: User = Depends(fastapi_users.current_user())):
+    db = next(get_db())
+    return delete_task(db, task_id, user.id)

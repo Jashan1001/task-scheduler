@@ -1,19 +1,12 @@
-from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime
-from app.utils import send_email
+import smtplib
+from email.mime.text import MIMEText
 
-scheduler = BackgroundScheduler()
-scheduler.start()
+def send_email(user_email, user_password, recipient, subject, body):
+    msg = MIMEText(body)
+    msg['Subject'] = subject
+    msg['From'] = user_email
+    msg['To'] = recipient
 
-def schedule_task(task):
-    run_time = task.reminder_time
-    if run_time > datetime.now():
-        scheduler.add_job(
-            func=send_email,
-            trigger="date",
-            run_date=run_time,
-            args=[f"Reminder: {task.title}", f"Don't forget: {task.title}"],
-            id=str(task.id),
-            replace_existing=True
-        )
-        print(f"⏰ Task scheduled: {task.title} at {run_time}")
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+        server.login(user_email, user_password)
+        server.sendmail(user_email, recipient, msg.as_string())

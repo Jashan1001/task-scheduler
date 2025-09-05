@@ -1,22 +1,23 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 import "./TaskDashboard.css";
 
-const API_URL = "http://127.0.0.1:8000"; // FastAPI backend
+const API_URL = "http://127.0.0.1:8000";
 
-export default function TaskDashboard() {
+function TaskDashboard() {
   const [tasks, setTasks] = useState([]);
   const [title, setTitle] = useState("");
-  const [email, setEmail] = useState("");
-  const [reminderTime, setReminderTime] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
 
-  // Fetch tasks from backend
+  const token = localStorage.getItem("token");
+  const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
+
   const fetchTasks = async () => {
     try {
-      const res = await axios.get(`${API_URL}/tasks/`);
-      setTasks(res.data);
+      const response = await axios.get(`${API_URL}/tasks/`, axiosConfig);
+      setTasks(response.data);
     } catch (err) {
-      console.error(err);
+      console.error("Error fetching tasks:", err);
     }
   };
 
@@ -24,68 +25,70 @@ export default function TaskDashboard() {
     fetchTasks();
   }, []);
 
-  // Create a new task
-  const createTask = async () => {
+  const createTask = async (e) => {
+    e.preventDefault();
     try {
-      await axios.post(`${API_URL}/tasks/`, {
-        title,
-        email,
-        reminder_time: reminderTime,
-      });
-      fetchTasks();
+      await axios.post(
+        `${API_URL}/tasks/`,
+        { title, scheduled_time: scheduledTime },
+        axiosConfig
+      );
       setTitle("");
-      setEmail("");
-      setReminderTime("");
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Delete a task
-  const deleteTask = async (id) => {
-    try {
-      await axios.delete(`${API_URL}/tasks/${id}`);
+      setScheduledTime("");
       fetchTasks();
     } catch (err) {
-      console.error(err);
+      console.error("Error creating task:", err);
     }
   };
 
-  // JSX (HTML-like code)
+  const deleteTask = async (taskId) => {
+    try {
+      await axios.delete(`${API_URL}/tasks/${taskId}`, axiosConfig);
+      fetchTasks();
+    } catch (err) {
+      console.error("Error deleting task:", err);
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+  };
+
   return (
-    <div className="container">
-      <h2>Task Dashboard</h2>
-      <div>
+    <div className="dashboard-container">
+      <h1>Task Dashboard</h1>
+      <button onClick={logout}>Logout</button>
+
+      <form onSubmit={createTask}>
         <input
           type="text"
-          placeholder="Title"
+          placeholder="Task Title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-        />
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          required
         />
         <input
           type="datetime-local"
-          value={reminderTime}
-          onChange={(e) => setReminderTime(e.target.value)}
+          value={scheduledTime}
+          onChange={(e) => setScheduledTime(e.target.value)}
+          required
         />
-        <button onClick={createTask}>Add Task</button>
-      </div>
-      <h3>Tasks</h3>
+        <button type="submit">Add Task</button>
+      </form>
+
+      <h2>Your Tasks</h2>
       <ul>
-        {tasks.map((t) => (
-          <li key={t.id}>
-            <span>
-              {t.title} - {t.email} - {t.reminder_time} - {t.status}
-            </span>
-            <button onClick={() => deleteTask(t.id)}>Delete</button>
+        {tasks.map((task) => (
+          <li key={task.id}>
+            <strong>{task.title}</strong> -{" "}
+            {new Date(task.scheduled_time).toLocaleString()}
+            <button onClick={() => deleteTask(task.id)}>Delete</button>
           </li>
         ))}
       </ul>
     </div>
   );
 }
+
+export default TaskDashboard;
